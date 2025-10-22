@@ -1,0 +1,76 @@
+# 配置文件 - OWLv2 + DINOv3 + Depth Anything V2 架构
+# 最后更新: 2025-10-22
+
+## 数据集配置
+DATA:
+  dataset_name: "soumikrakshit/nyu-depth-v2"
+  data_dir: "data"
+  train_ratio: 0.8
+  max_samples: null # null表示使用所有样本
+
+## OWLv2 检测配置 (零样本检测,无需训练)
+DETECTION:
+  model_name: "google/owlv2-large-patch14-ensemble"
+  # 降级选项:
+  # - "google/owlv2-base-patch16-ensemble" (更快,精度略低)
+  confidence_threshold: 0.15 # 室内场景优化
+  use_nms: true
+  nms_threshold: 0.5
+  min_area_ratio: 0.001 # 最小检测框面积比例
+
+## DINOv3 特征提取配置
+FEATURES:
+  model_name: "facebook/dinov3-vitl16-pretrain-lvd1689m" # Large (304M)
+  # 降级选项:
+  # - "facebook/dinov3-vitb16-pretrain-lvd1689m" (Base, 86M)
+  # - "facebook/dinov3-vits16-pretrain-lvd1689m" (Small, 22M)
+
+## Depth Anything V2 配置 (使用DINOv3骨干网络)
+DEPTH:
+  model_name: "depth-anything/Depth-Anything-V2-Large-hf"
+  # 降级选项:
+  # - "depth-anything/Depth-Anything-V2-Base-hf" (基础模型)
+  # - "depth-anything/Depth-Anything-V2-Small-hf" (小模型,快速)
+
+## 相机参数配置
+CAMERA:
+  # NYU Depth V2数据集的默认参数
+  fx: 0.7 # 相对于图像宽度
+  fy: 0.7 # 相对于图像高度
+  cx: 0.5 # 相对于图像宽度
+  cy: 0.5 # 相对于图像高度
+
+## 评估配置
+EVALUATION:
+  num_samples: 30 # 评估样本数量
+  depth_threshold: 10.0 # 最大有效深度(米)
+  localization_threshold: 1.0 # 3D定位匹配阈值(米)
+
+## 实时检测配置
+REALTIME:
+  camera_id: 0
+  fps: 30
+  resolution: [640, 480]
+  save_video: true
+  output_path: "results/realtime_demo.mp4"
+
+## 输出配置
+OUTPUT:
+  models_dir: "models"
+  results_dir: "results"
+  save_visualization: true
+  save_metrics: true
+
+## 性能配置
+PERFORMANCE:
+  device: "auto" # auto, cuda, cpu
+  num_workers: 4
+  use_amp: false # 自动混合精度(需要GPU)
+
+## 传统检测配置 (已弃用 - 保留仅用于向后兼容)
+LEGACY_DETECTION:
+  # 基于亮度的简单检测算法参数
+  brightness_threshold: 200
+  min_area: 100
+  max_area_ratio: 0.3
+  morphology_kernel_size: 5
