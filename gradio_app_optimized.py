@@ -422,11 +422,13 @@ with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.S
             1. 点击摄像头图标启动本地摄像头
             2. 调整置信度阈值
             3. 选择是否显示深度图
-            4. 实时查看检测结果
+            4. 点击"🔍 开始检测"按钮
+            5. 每次点击会处理当前摄像头画面
             
             **性能提示**:
             - 推理时间约1-3秒/帧
-            - 如需更快响应,请降低置信度阈值或使用间隔检测
+            - 建议使用"间隔检测"标签页进行长时间监控
+            - 关闭深度图可提升速度
             """)
             
             with gr.Row():
@@ -434,33 +436,43 @@ with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.S
                     webcam_input = gr.Image(
                         label="本地摄像头",
                         sources=["webcam"],
-                        type="numpy"
+                        type="numpy",
+                        streaming=False
                     )
-                    webcam_confidence = gr.Slider(
-                        minimum=0.05,
-                        maximum=0.5,
-                        value=0.15,
-                        step=0.05,
-                        label="置信度阈值"
-                    )
-                    webcam_depth_check = gr.Checkbox(
-                        label="显示深度图",
-                        value=False  # 默认关闭深度图以提升速度
-                    )
-                    webcam_btn = gr.Button("🔍 开始检测", variant="primary")
+                    with gr.Row():
+                        webcam_confidence = gr.Slider(
+                            minimum=0.05,
+                            maximum=0.5,
+                            value=0.15,
+                            step=0.05,
+                            label="置信度阈值"
+                        )
+                        webcam_depth_check = gr.Checkbox(
+                            label="显示深度图",
+                            value=False
+                        )
+                    webcam_btn = gr.Button("🔍 检测当前画面", variant="primary", size="lg")
                 
                 with gr.Column():
                     webcam_output = gr.Image(label="检测结果")
-                    webcam_depth = gr.Image(label="深度图")
+                    webcam_depth = gr.Image(label="深度图", visible=True)
             
             with gr.Row():
-                webcam_stats = gr.Markdown(label="实时统计")
+                webcam_stats = gr.Markdown(label="实时统计", value="等待检测...")
             
+            # 点击按钮时处理
             webcam_btn.click(
                 fn=process_webcam_frame,
                 inputs=[webcam_input, webcam_confidence, webcam_depth_check],
                 outputs=[webcam_output, webcam_depth, webcam_stats]
             )
+            
+            # 当摄像头输入变化时也可以自动处理(可选)
+            # webcam_input.change(
+            #     fn=process_webcam_frame,
+            #     inputs=[webcam_input, webcam_confidence, webcam_depth_check],
+            #     outputs=[webcam_output, webcam_depth, webcam_stats]
+            # )
         
         # Tab 4: 使用说明
         with gr.Tab("📖 使用指南"):
@@ -605,5 +617,7 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7860,
         share=False,
-        show_error=True
+        show_error=True,
+        allowed_paths=["/"],
+        root_path=None
     )
