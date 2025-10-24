@@ -319,34 +319,80 @@
             // 将视频帧绘制到canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // 转换为base64
-            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            // 转换为Blob
+            canvas.toBlob(async (blob) => {
+                try {
+                    // 发送到服务器进行检测
+                    const serverUrl = document.getElementById('serverUrl').value;
+                    const confidence = parseFloat(document.getElementById('confidence').value);
 
-            try {
-                // 发送到服务器进行检测
-                const serverUrl = document.getElementById('serverUrl').value;
-                const confidence = parseFloat(document.getElementById('confidence').value);
+                    // 创建FormData
+                    const formData = new FormData();
+                    formData.append('data', JSON.stringify([null, confidence, false])); // [image, confidence, show_depth]
+                    
+                    // 上传图片文件
+                    const fileData = new FormData();
+                    fileData.append('files', blob, 'webcam.jpg');
+                    
+                    // 先上传文件
+                    const uploadResponse = await fetch(`${serverUrl}/upload`, {
+                        method: 'POST',
+                        body: fileData
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        throw new Error('文件上传失败');
+                    }
+                    
+                    const uploadResult = await uploadResponse.json();
+                    console.log('Upload result:', uploadResult);
+                    
+                    // 调用实时检测API (Tab 3)
+                    const response = await fetch(`${serverUrl}/call/process_webcam_frame`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            data: [
+                                {path: uploadResult[0]}, // 使用上传的文件路径
+                                confidence,
+                                false  // show_depth
+                            ]
+                        })
+                    });
 
-                const response = await fetch(`${serverUrl}/api/predict`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        data: [imageData, confidence]
-                    })
-                });
+                    if (!response.ok) {
+                        throw new Error('检测请求失败');
+                    }
 
-                if (response.ok) {
                     const result = await response.json();
+                    console.log('Detection result:', result);
 
-                    // 绘制检测结果
-                    if (result.data && result.data[0]) {
-                        const resultImage = new Image();
-                        resultImage.onload = () => {
-                            ctx.drawImage(resultImage, 0, 0, canvas.width, canvas.height);
-                        };
-                        resultImage.src = result.data[0];
+                    // 获取结果
+                    if (result.event_id) {
+                        // 等待结果
+                        const eventResponse = await fetch(`${serverUrl}/call/process_webcam_frame/${result.event_id}`);
+                        const eventResult = await eventResponse.json();
+                        
+                        if (eventResult.output && eventResult.output.data && eventResult.output.data[0]) {
+                            // 绘制检测结果图像
+                            const resultImageUrl = `${serverUrl}/file=${eventResult.output.data[0].path}`;
+                            const resultImage = new Image();
+                            resultImage.onload = () => {
+                                ctx.drawImage(resultImage, 0, 0, canvas.width, canvas.height);
+                            };
+                            resultImage.src = resultImageUrl;
+                            
+                            // 更新检测数量 (从统计信息中提取)
+                            if (eventResult.output.data[2]) {
+                                const statsText = eventResult.output.data[2];
+                                const match = statsText.match(/检测数量\*\*:\s*(\d+)/);
+                                if (match) {
+                                    document.getElementById('detectionCount').textContent = match[1];
+                                }
+                            }
+                        }
                     }
 
                     // 更新统计信息
@@ -365,17 +411,20 @@
                     }
 
                     document.getElementById('totalFrames').textContent = totalFrames;
+
+                } catch (error) {
+                    console.error('检测失败:', error);
+                    ctx.fillStyle = 'red';
+                    ctx.font = '20px Arial';
+                    ctx.fillText('⚠️ 服务器连接失败: ' + error.message, 10, 30);
+                    ctx.fillText('请检查服务器地址和Gradio是否运行', 10, 60);
                 }
 
-            } catch (error) {
-                console.error('检测失败:', error);
-                ctx.fillStyle = 'red';
-                ctx.font = '20px Arial';
-                ctx.fillText('⚠️ 服务器连接失败', 10, 30);
-            }
-
-            // 继续下一帧
-            animationId = requestAnimationFrame(detectLoop);
+                // 继续下一帧
+                if (isRunning) {
+                    animationId = setTimeout(() => requestAnimationFrame(detectLoop), 100); // 限制为10fps
+                }
+            }, 'image/jpeg', 0.8);
         }
     </script>
 </body>
