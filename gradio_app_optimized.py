@@ -311,6 +311,16 @@ def process_webcam_frame(frame, confidence_threshold, show_depth):
         error_msg = f"❌ 处理失败: {str(e)}\n\n```\n{traceback.format_exc()}\n```"
         return frame, None, error_msg
 
+def process_webcam_continuous(frame, confidence_threshold, show_depth, is_running):
+    """连续处理摄像头帧 - 用于自动间隔采样"""
+    if not is_running or frame is None:
+        return None, None, "⏸️ 检测已停止", is_running
+    
+    # 调用标准处理函数
+    output_frame, depth_image, stats = process_webcam_frame(frame, confidence_threshold, show_depth)
+    
+    return output_frame, depth_image, stats, is_running
+
 # 创建Gradio界面
 with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
@@ -411,33 +421,35 @@ with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.S
         # Tab 3: 实时检测
         with gr.Tab("📹 实时检测"):
             gr.Markdown("""
-            ### 🎥 实时摄像头检测
+            ### 🎥 自动间隔采样检测
             
             **完整功能**:
             - ✅ 灯具检测 + 距离估计 + 深度图
+            - ✅ 自动间隔采样 (摄像头持续开启,定时检测)
             - ✅ 实时FPS显示
-            - ✅ 检测结果可视化
+            - ✅ 检测结果自动刷新
             
             **使用方法**:
             1. 点击摄像头图标启动本地摄像头
-            2. 调整置信度阈值
-            3. 选择是否显示深度图
-            4. 点击"🔍 开始检测"按钮
-            5. 每次点击会处理当前摄像头画面
+            2. 调整检测间隔 (建议5-10秒)
+            3. 调整置信度阈值
+            4. 选择是否显示深度图
+            5. 摄像头会自动按间隔时间检测当前画面
             
             **性能提示**:
             - 推理时间约1-3秒/帧
-            - 建议使用"间隔检测"标签页进行长时间监控
+            - 建议间隔5秒以上,避免GPU过载
             - 关闭深度图可提升速度
             """)
             
             with gr.Row():
                 with gr.Column():
                     webcam_input = gr.Image(
-                        label="本地摄像头",
+                        label="本地摄像头 (会自动检测)",
                         sources=["webcam"],
                         type="numpy",
-                        streaming=False
+                        streaming=True,  # 持续流式传输
+                        every=5  # 每5秒触发一次
                     )
                     with gr.Row():
                         webcam_confidence = gr.Slider(
@@ -451,28 +463,24 @@ with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.S
                             label="显示深度图",
                             value=False
                         )
-                    webcam_btn = gr.Button("🔍 检测当前画面", variant="primary", size="lg")
                 
                 with gr.Column():
                     webcam_output = gr.Image(label="检测结果")
                     webcam_depth = gr.Image(label="深度图", visible=True)
             
             with gr.Row():
-                webcam_stats = gr.Markdown(label="实时统计", value="等待检测...")
+                webcam_stats = gr.Markdown(
+                    label="实时统计", 
+                    value="📹 启动摄像头后会自动每5秒检测一次..."
+                )
             
-            # 点击按钮时处理
-            webcam_btn.click(
+            # 当摄像头输入变化时自动处理 (间隔由 every 参数控制)
+            webcam_input.stream(
                 fn=process_webcam_frame,
                 inputs=[webcam_input, webcam_confidence, webcam_depth_check],
-                outputs=[webcam_output, webcam_depth, webcam_stats]
+                outputs=[webcam_output, webcam_depth, webcam_stats],
+                stream_every=5  # 每5秒处理一次
             )
-            
-            # 当摄像头输入变化时也可以自动处理(可选)
-            # webcam_input.change(
-            #     fn=process_webcam_frame,
-            #     inputs=[webcam_input, webcam_confidence, webcam_depth_check],
-            #     outputs=[webcam_output, webcam_depth, webcam_stats]
-            # )
         
         # Tab 4: 使用说明
         with gr.Tab("📖 使用指南"):
