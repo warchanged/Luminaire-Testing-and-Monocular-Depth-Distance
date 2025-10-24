@@ -329,24 +329,24 @@
                     // 创建FormData
                     const formData = new FormData();
                     formData.append('data', JSON.stringify([null, confidence, false])); // [image, confidence, show_depth]
-                    
+
                     // 上传图片文件
                     const fileData = new FormData();
                     fileData.append('files', blob, 'webcam.jpg');
-                    
+
                     // 先上传文件
                     const uploadResponse = await fetch(`${serverUrl}/upload`, {
                         method: 'POST',
                         body: fileData
                     });
-                    
+
                     if (!uploadResponse.ok) {
                         throw new Error('文件上传失败');
                     }
-                    
+
                     const uploadResult = await uploadResponse.json();
                     console.log('Upload result:', uploadResult);
-                    
+
                     // 调用实时检测API (Tab 3)
                     const response = await fetch(`${serverUrl}/call/process_webcam_frame`, {
                         method: 'POST',
@@ -355,7 +355,7 @@
                         },
                         body: JSON.stringify({
                             data: [
-                                {path: uploadResult[0]}, // 使用上传的文件路径
+                                { path: uploadResult[0] }, // 使用上传的文件路径
                                 confidence,
                                 false  // show_depth
                             ]
@@ -374,7 +374,7 @@
                         // 等待结果
                         const eventResponse = await fetch(`${serverUrl}/call/process_webcam_frame/${result.event_id}`);
                         const eventResult = await eventResponse.json();
-                        
+
                         if (eventResult.output && eventResult.output.data && eventResult.output.data[0]) {
                             // 绘制检测结果图像
                             const resultImageUrl = `${serverUrl}/file=${eventResult.output.data[0].path}`;
@@ -383,7 +383,7 @@
                                 ctx.drawImage(resultImage, 0, 0, canvas.width, canvas.height);
                             };
                             resultImage.src = resultImageUrl;
-                            
+
                             // 更新检测数量 (从统计信息中提取)
                             if (eventResult.output.data[2]) {
                                 const statsText = eventResult.output.data[2];
