@@ -379,33 +379,25 @@ with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.S
             gr.Markdown("""
             ### ⚡ 间隔采样监控
             
-            **功能**: 对上传的图片进行定时重复检测,模拟监控场景
+            **功能**: 对上传的图片进行重复检测,可以手动触发多次
             
             **使用场景**:
-            - 长时间监控固定场景
-            - 降低GPU负载(每N秒检测一次)
             - 测试检测稳定性
+            - 对比不同参数的效果
+            - 验证检测一致性
             
             **使用方法**:
             1. 上传一张图片
-            2. 设置检测间隔(建议5-10秒)
-            3. 点击"开始采样"后会自动重复检测
-            4. 点击"停止"结束
-            """)
+            2. 调整检测参数
+            3. 每次点击"检测"会重新处理图片
+            4. 可以多次点击观察结果变化
             
-            # 添加状态变量
-            sampling_state = gr.State({"running": False, "count": 0})
+            **提示**: 如需真正的定时自动检测,请使用"视频流检测"标签
+            """)
             
             with gr.Row():
                 with gr.Column():
                     sampling_input = gr.Image(label="上传图片", type="numpy")
-                    sampling_interval = gr.Slider(
-                        minimum=3,
-                        maximum=30,
-                        value=5,
-                        step=1,
-                        label="检测间隔(秒)"
-                    )
                     sampling_confidence = gr.Slider(
                         minimum=0.05,
                         maximum=0.5,
@@ -415,30 +407,22 @@ with gr.Blocks(title="灯具3D定位检测系统 (优化版)", theme=gr.themes.S
                     )
                     sampling_depth_check = gr.Checkbox(
                         label="显示深度图",
-                        value=False
+                        value=True
                     )
-                    with gr.Row():
-                        sampling_start_btn = gr.Button("▶️ 开始采样", variant="primary")
-                        sampling_stop_btn = gr.Button("⏹️ 停止", variant="stop")
+                    sampling_btn = gr.Button("🔍 检测", variant="primary", size="lg")
                 
                 with gr.Column():
                     sampling_output = gr.Image(label="检测结果")
                     sampling_depth = gr.Image(label="深度图")
             
             with gr.Row():
-                sampling_stats = gr.Markdown(label="采样统计", value="⏸️ 等待开始...")
+                sampling_stats = gr.Markdown(label="检测统计")
             
-            # 点击开始采样
-            sampling_start_btn.click(
-                fn=process_frame_interval,
-                inputs=[sampling_input, sampling_confidence, sampling_interval, sampling_depth_check],
-                outputs=[sampling_output, sampling_depth, sampling_stats],
-                every=5  # 每5秒触发一次
-            )
-            
-            sampling_stop_btn.click(
-                fn=lambda: "⏹️ 已停止采样",
-                outputs=sampling_stats
+            # 点击检测按钮
+            sampling_btn.click(
+                fn=process_image,
+                inputs=[sampling_input, sampling_confidence, sampling_depth_check],
+                outputs=[sampling_output, sampling_depth, sampling_stats]
             )
         
         # Tab 3: 视频流实时检测
