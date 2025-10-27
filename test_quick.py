@@ -1,6 +1,12 @@
 """
 快速测试DINO流程
 验证环境配置和基本功能
+
+NOTE: This is a functional test script (not a unittest-based test).
+It provides interactive testing and validation of the DINO pipeline,
+dependencies, and sample image detection. Run directly with: python test_quick.py
+
+For automated unit tests, see test_api.py and test_realtime.py instead.
 """
 
 def test_imports():

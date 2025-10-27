@@ -1,5 +1,11 @@
 """
 精细阈值测试工具 - 测试特定阈值范围的检测效果
+
+NOTE: This is an analysis and optimization utility script (not a unittest-based test).
+It's designed for threshold tuning and performance analysis across different images.
+Run with: python test_threshold_fine.py --help
+
+For automated unit tests, see test_api.py and test_realtime.py instead.
 """
 import argparse
 from pathlib import Path
