@@ -22,11 +22,15 @@ class TestAPI(unittest.TestCase):
         cls.server = Process(target=app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
         cls.server.start()
         
-        # Wait for server to be ready
+        # Wait for server to be ready by checking if port is accepting connections
         max_retries = 10
         for i in range(max_retries):
             try:
-                requests.get("http://localhost:5000/", timeout=1)
+                # Try a simple connection to check if server is up
+                # We expect a 405 Method Not Allowed for GET on /detect (POST only)
+                # which still confirms the server is running
+                response = requests.get("http://localhost:5000/detect", timeout=1)
+                # Any response (even error) means server is up
                 break
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
                 if i == max_retries - 1:
