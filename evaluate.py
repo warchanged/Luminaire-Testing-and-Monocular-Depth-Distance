@@ -26,7 +26,8 @@ class LightDetectionEvaluator:
                  data_dir="data/nyu_data/data",
                  detection_model="google/owlv2-large-patch14-ensemble",
                  feature_model="facebook/dinov3-vitl16-pretrain-lvd1689m",
-                 depth_model="depth-anything/Depth-Anything-V2-Large-hf"):
+                 depth_model="depth-anything/Depth-Anything-V2-Large-hf",
+                 use_int8=False):
         """
         初始化评估器
         
@@ -35,6 +36,7 @@ class LightDetectionEvaluator:
             detection_model: OWLv2检测模型
             feature_model: DINOv3特征模型
             depth_model: Depth Anything V2深度模型
+            use_int8: 是否使用INT8量化
         """
         self.data_dir = Path(data_dir)
         
@@ -46,6 +48,12 @@ class LightDetectionEvaluator:
             depth_model=depth_model
         )
         
+        if torch.cuda.is_available():
+            from tensorrt_utils import enable_tensorrt_optimization
+            self.pipeline.detection_model = enable_tensorrt_optimization(
+                self.pipeline.detection_model, use_int8=use_int8
+            )
+
         print("✓ 评估器初始化完成")
     
     def evaluate(self, 
@@ -298,19 +306,38 @@ def main():
     parser.add_argument('--samples', type=int, default=50, help='测试样本数')
     parser.add_argument('--confidence', type=float, default=0.15, help='检测置信度阈值 (OWLv2优化)')
     parser.add_argument('--output', type=str, default='results/owlv2_evaluation', help='输出目录')
+    parser.add_argument('--int8', action='store_true', help='运行INT8量化模型评估')
     
     args = parser.parse_args()
     
-    # 创建评估器 (OWLv2架构)
-    evaluator = LightDetectionEvaluator()
+    if args.int8:
+        print("Running INT8 evaluation...")
+        evaluator_int8 = LightDetectionEvaluator(use_int8=True)
+        stats_int8 = evaluator_int8.evaluate(
+            max_samples=args.samples,
+            confidence_threshold=args.confidence,
+            output_dir=Path(args.output) / "int8"
+        )
     
-    # 运行评估
-    stats = evaluator.evaluate(
+    print("Running FP16 evaluation...")
+    evaluator_fp16 = LightDetectionEvaluator(use_int8=False)
+    stats_fp16 = evaluator_fp16.evaluate(
         max_samples=args.samples,
         confidence_threshold=args.confidence,
-        output_dir=args.output
+        output_dir=Path(args.output) / "fp16"
     )
-    
+
+    if args.int8:
+        print("\n" + "="*60)
+        print("Comparison Report")
+        print("="*60)
+        print(f"| Metric | FP16 | INT8 |")
+        print(f"|---|---|---|")
+        print(f"| Avg. Inference Time (ms) | {stats_fp16['avg_inference_time']*1000:.2f} | {stats_int8['avg_inference_time']*1000:.2f} |")
+        print(f"| FPS | {stats_fp16['fps']:.2f} | {stats_int8['fps']:.2f} |")
+        print(f"| Avg. Detections | {stats_fp16['avg_detections_per_image']:.2f} | {stats_int8['avg_detections_per_image']:.2f} |")
+        print(f"| Avg. Confidence | {stats_fp16['avg_confidence']:.3f} | {stats_int8['avg_confidence']:.3f} |")
+
     print("\n" + "="*60)
     print("✓ 评估完成!")
     print("="*60)

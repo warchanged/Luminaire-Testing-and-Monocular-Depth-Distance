@@ -376,6 +376,71 @@ class RealtimeLightDetection:
             if output_path:
                 print(f"输出视频: {output_path}")
 
+    def _run_demo_mode(self):
+        """运行demo模式"""
+        # Demo模式: 使用测试数据集的图像
+        print("\nDemo模式: 处理测试图像")
+
+        # 找到测试图像
+        test_dir = Path("data/yolo_dataset/images/val")
+        if not test_dir.exists():
+            test_dir = Path("data/yolo_dataset_dino/images/val")
+
+        if not test_dir.exists():
+            print("✗ 未找到测试图像目录")
+            return
+
+        # 创建伪视频流
+        test_images = sorted(test_dir.glob("*.jpg"))[:10]
+
+        if not test_images:
+            print("✗ 未找到测试图像")
+            return
+
+        print(f"找到 {len(test_images)} 张测试图像")
+        print("按 'q' 退出, 'n' 下一张, 'p' 上一张")
+
+        idx = 0
+
+        while True:
+            # 读取图像
+            img_path = test_images[idx]
+            frame = cv2.imread(str(img_path))
+
+            if frame is None:
+                idx = (idx + 1) % len(test_images)
+                continue
+
+            # 处理
+            vis_frame, results, fps = self.process_frame(frame)
+
+            # 显示图像信息
+            cv2.putText(
+                vis_frame,
+                f"Image {idx+1}/{len(test_images)}: {img_path.name}",
+                (10, frame.shape[0] - 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2
+            )
+
+            cv2.imshow('DINO Demo', vis_frame)
+
+            # 按键
+            key = cv2.waitKey(0) & 0xFF
+
+            if key == ord('q'):
+                break
+            elif key == ord('n'):
+                idx = (idx + 1) % len(test_images)
+            elif key == ord('p'):
+                idx = (idx - 1) % len(test_images)
+
+        cv2.destroyAllWindows()
+
+        print("\n✓ Demo完成")
+
 
 def main():
     """主函数"""
@@ -414,13 +479,6 @@ def main():
         help='检测置信度阈值 (推荐: 0.22平衡模式, 0.10-0.15多灯高召回, 0.25-0.30高精度)'
     )
     
-    parser.add_argument(
-        '--dino-model',
-        type=str,
-        default='IDEA-Research/grounding-dino-tiny',
-        help='DINO模型名称'
-    )
-    
     args = parser.parse_args()
     
     print("="*60)
@@ -429,7 +487,6 @@ def main():
     
     # 初始化系统
     detector = RealtimeLightDetection(
-        dino_model=args.dino_model,
         confidence_threshold=args.confidence
     )
     
@@ -451,68 +508,7 @@ def main():
         )
     
     elif args.mode == 'demo':
-        # Demo模式: 使用测试数据集的图像
-        print("\nDemo模式: 处理测试图像")
-        
-        # 找到测试图像
-        test_dir = Path("data/yolo_dataset/images/val")
-        if not test_dir.exists():
-            test_dir = Path("data/yolo_dataset_dino/images/val")
-        
-        if not test_dir.exists():
-            print("✗ 未找到测试图像目录")
-            return
-        
-        # 创建伪视频流
-        test_images = sorted(test_dir.glob("*.jpg"))[:10]
-        
-        if not test_images:
-            print("✗ 未找到测试图像")
-            return
-        
-        print(f"找到 {len(test_images)} 张测试图像")
-        print("按 'q' 退出, 'n' 下一张, 'p' 上一张")
-        
-        idx = 0
-        
-        while True:
-            # 读取图像
-            img_path = test_images[idx]
-            frame = cv2.imread(str(img_path))
-            
-            if frame is None:
-                idx = (idx + 1) % len(test_images)
-                continue
-            
-            # 处理
-            vis_frame, results, fps = detector.process_frame(frame)
-            
-            # 显示图像信息
-            cv2.putText(
-                vis_frame,
-                f"Image {idx+1}/{len(test_images)}: {img_path.name}",
-                (10, frame.shape[0] - 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2
-            )
-            
-            cv2.imshow('DINO Demo', vis_frame)
-            
-            # 按键
-            key = cv2.waitKey(0) & 0xFF
-            
-            if key == ord('q'):
-                break
-            elif key == ord('n'):
-                idx = (idx + 1) % len(test_images)
-            elif key == ord('p'):
-                idx = (idx - 1) % len(test_images)
-        
-        cv2.destroyAllWindows()
-        
-        print("\n✓ Demo完成")
+        detector._run_demo_mode()
 
 
 if __name__ == "__main__":

@@ -5,8 +5,20 @@ TensorRT优化工具
 
 import torch
 import torch.nn as nn
+import platform
+from calibration import get_calibration_loader
 
-def enable_tensorrt_optimization(model, input_shape=(1, 3, 224, 224)):
+try:
+    import torch_tensorrt
+    from torch_tensorrt.ptq import INT8Calibrator, DataLoaderCalibrator
+except ImportError:
+    pass
+
+def is_jetson():
+    """检查是否在Jetson平台上运行"""
+    return "aarch64" in platform.machine()
+
+def enable_tensorrt_optimization(model, input_shape=(1, 3, 224, 224), use_int8=False):
     """
     为PyTorch模型启用TensorRT优化
     
@@ -42,12 +54,28 @@ def enable_tensorrt_optimization(model, input_shape=(1, 3, 224, 224)):
             with torch.no_grad():
                 dummy_input = torch.randn(input_shape).cuda()
                 
+                # Configure INT8 calibration
+                calibrator = None
+                enabled_precisions = {torch.float16}
+                if use_int8:
+                    print("Performing INT8 calibration...")
+                    calibration_loader = get_calibration_loader()
+                    calibrator = DataLoaderCalibrator(
+                        calibration_loader,
+                        cache_file="./calibration.cache",
+                        use_cache=False,
+                        algo_type=torch_tensorrt.ptq.CalibrationAlgo.ENTROPY_CALIBRATION_2,
+                        device=torch.device("cuda:0"),
+                    )
+                    enabled_precisions = {torch.int8}
+
                 # 编译为TensorRT
                 trt_model = torch_tensorrt.compile(
                     model,
                     inputs=[dummy_input],
-                    enabled_precisions={torch.float16},  # FP16加速
-                    workspace_size=1 << 30  # 1GB
+                    enabled_precisions=enabled_precisions,
+                    workspace_size=1 << 30,  # 1GB
+                    calibrator=calibrator,
                 )
                 
                 print("✅ TensorRT优化成功")

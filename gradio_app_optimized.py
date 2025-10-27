@@ -32,12 +32,9 @@ def initialize_pipeline():
         )
         
         # 尝试启用TensorRT加速
-        try:
-            if hasattr(pipeline, 'enable_tensorrt'):
-                pipeline.enable_tensorrt()
-                print("✅ TensorRT加速已启用")
-        except Exception as e:
-            print(f"⚠️ TensorRT加速启用失败: {e}")
+        if hasattr(pipeline, 'enable_tensorrt'):
+            pipeline.enable_tensorrt()
+            print("✅ TensorRT加速已启用")
         
         print("✅ 流水线初始化完成!")
     return pipeline
@@ -158,6 +155,38 @@ def process_image(image, confidence_threshold, show_depth):
         error_msg = f"❌ 处理失败: {str(e)}\n\n```\n{traceback.format_exc()}\n```"
         return image, None, error_msg
 
+def _process_frame_common(frame, confidence_threshold, show_depth):
+    """通用帧处理逻辑"""
+    pipe = initialize_pipeline()
+    result = pipe.process_image(
+        frame,
+        confidence_threshold=confidence_threshold,
+        compute_depth=show_depth,
+        compute_distance=show_depth
+    )
+    detections = result['detections']
+    depth_map = result.get('depth_map')
+    output_frame = draw_detections(frame.copy(), detections)
+
+    depth_image = None
+    if show_depth and depth_map is not None:
+        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        im = ax.imshow(depth_map, cmap='plasma')
+        ax.set_title('Depth Map', fontsize=14)
+        ax.axis('off')
+        plt.colorbar(im, ax=ax, label='Depth (normalized)')
+
+        fig.canvas.draw()
+        buf = fig.canvas.buffer_rgba()
+        depth_image = np.asarray(buf)[:, :, :3]
+        plt.close(fig)
+
+    return output_frame, depth_image, detections, result['timing']
+
 def process_frame_interval(frame, confidence_threshold, interval_seconds, show_depth):
     """间隔采样处理视频帧 - 完整功能版本"""
     global last_detection_time
@@ -166,24 +195,8 @@ def process_frame_interval(frame, confidence_threshold, interval_seconds, show_d
         return None, None, "❌ 请先上传图片!"
     
     try:
-        current_time = time.time()
-        time_since_last = current_time - last_detection_time
-        
-        # 执行完整检测(包含距离)
-        pipe = initialize_pipeline()
-        
-        result = pipe.process_image(
-            frame,
-            confidence_threshold=confidence_threshold,
-            compute_depth=show_depth,
-            compute_distance=True  # 启用距离检测
-        )
-        
-        detections = result['detections']
-        depth_map = result.get('depth_map')
-        
-        output_frame = draw_detections(frame.copy(), detections)
-        last_detection_time = current_time
+        output_frame, depth_image, detections, timing = _process_frame_common(frame, confidence_threshold, show_depth)
+        last_detection_time = time.time()
         
         # 生成统计信息
         stats = f"""
@@ -203,24 +216,6 @@ def process_frame_interval(frame, confidence_threshold, interval_seconds, show_d
             if det.get('distance'):
                 stats += f"- 距离: {det['distance']:.2f}m\n"
         
-        # 生成深度图
-        depth_image = None
-        if show_depth and depth_map is not None:
-            import matplotlib.pyplot as plt
-            import matplotlib
-            matplotlib.use('Agg')
-            
-            fig, ax = plt.subplots(figsize=(8, 6))
-            im = ax.imshow(depth_map, cmap='plasma')
-            ax.set_title('Depth Map', fontsize=14)
-            ax.axis('off')
-            plt.colorbar(im, ax=ax, label='Depth (normalized)')
-            
-            fig.canvas.draw()
-            buf = fig.canvas.buffer_rgba()
-            depth_image = np.asarray(buf)[:, :, :3]
-            plt.close(fig)
-        
         return output_frame, depth_image, stats
         
     except Exception as e:
@@ -234,35 +229,10 @@ def process_webcam_frame(frame, confidence_threshold, show_depth):
         return None, None, "⏳ 等待摄像头输入..."
     
     try:
-        start_time = time.time()
-        pipe = initialize_pipeline()
-        
-        # 确保图像格式正确
-        if isinstance(frame, Image.Image):
-            frame = np.array(frame)
-        
-        if len(frame.shape) == 2:
-            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        elif frame.shape[2] == 4:
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2RGB)
-        
-        # 执行完整检测
-        result = pipe.process_image(
-            frame,
-            confidence_threshold=confidence_threshold,
-            compute_depth=show_depth,
-            compute_distance=True  # 启用距离检测
-        )
-        
-        detections = result['detections']
-        depth_map = result.get('depth_map')
-        
-        # 绘制检测结果
-        output_frame = draw_detections(frame.copy(), detections)
+        output_frame, depth_image, detections, timing = _process_frame_common(frame, confidence_threshold, show_depth)
         
         # 添加性能信息
-        process_time = time.time() - start_time
-        fps = 1.0 / process_time if process_time > 0 else 0
+        fps = 1.0 / timing['total'] if timing['total'] > 0 else 0
         cv2.putText(output_frame, f"FPS: {fps:.1f}", (10, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         cv2.putText(output_frame, f"Detections: {len(detections)}", (10, 70),
@@ -272,7 +242,7 @@ def process_webcam_frame(frame, confidence_threshold, show_depth):
         stats = f"""
         ### 📊 实时检测统计
         - **检测数量**: {len(detections)} 个灯具
-        - **处理时间**: {process_time:.2f}秒
+        - **处理时间**: {timing['total']:.2f}秒
         - **FPS**: {fps:.2f}
         - **置信度阈值**: {confidence_threshold:.2f}
         
@@ -285,24 +255,6 @@ def process_webcam_frame(frame, confidence_threshold, show_depth):
             stats += f"- 置信度: {det['confidence']:.2%}\n"
             if det.get('distance'):
                 stats += f"- 距离: {det['distance']:.2f}m\n"
-        
-        # 生成深度图
-        depth_image = None
-        if show_depth and depth_map is not None:
-            import matplotlib.pyplot as plt
-            import matplotlib
-            matplotlib.use('Agg')
-            
-            fig, ax = plt.subplots(figsize=(8, 6))
-            im = ax.imshow(depth_map, cmap='plasma')
-            ax.set_title('Depth Map', fontsize=14)
-            ax.axis('off')
-            plt.colorbar(im, ax=ax, label='Depth (normalized)')
-            
-            fig.canvas.draw()
-            buf = fig.canvas.buffer_rgba()
-            depth_image = np.asarray(buf)[:, :, :3]
-            plt.close(fig)
         
         return output_frame, depth_image, stats
         
