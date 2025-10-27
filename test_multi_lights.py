@@ -1,6 +1,12 @@
 """
 多灯场景检测测试
 对比不同配置下的检测效果
+
+NOTE: This is a benchmark and comparison utility script (not a unittest-based test).
+It's designed for interactive testing and parameter optimization across different
+detection configurations. Run with: python test_multi_lights.py
+
+For automated unit tests, see test_api.py and test_realtime.py instead.
 """
 
 import cv2
