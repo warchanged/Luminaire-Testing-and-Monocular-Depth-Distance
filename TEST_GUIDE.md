@@ -51,11 +51,11 @@ These are tools for performance testing and parameter optimization:
   - Compares different detection configurations
   - Batch testing across multiple images
   - Generates visualization and comparison reports
-  - **Usage:** 
+  - **Usage:**
     ```bash
     # Single image test
     python test_multi_lights.py --image path/to/image.jpg
-    
+
     # Batch test
     python test_multi_lights.py --batch --samples 10
     ```
@@ -68,7 +68,7 @@ These are tools for performance testing and parameter optimization:
     ```bash
     # Single image with custom thresholds
     python test_threshold_fine.py --image path/to/image.jpg --thresholds 0.12 0.15 0.18
-    
+
     # Batch test with default thresholds
     python test_threshold_fine.py --batch --samples 10
     ```
@@ -170,7 +170,7 @@ When adding new tests:
 1. **For Unit Tests**: Add to `test_api.py` or `test_realtime.py`
 2. **For Utilities**: Create new files with clear documentation
 3. **Update This Guide**: Document the new test's purpose and usage
-4. **Follow Naming Convention**: 
+4. **Follow Naming Convention**:
    - Unit tests: `test_<module>.py` with unittest framework
    - Utilities: `test_<purpose>.py` with clear header documentation
 
