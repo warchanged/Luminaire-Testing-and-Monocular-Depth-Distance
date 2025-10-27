@@ -1,0 +1,23 @@
+# Jetson Dockerfile for Luminaire Testing and Monocular Depth Distance
+# Base image from NVIDIA for JetPack 5.x with PyTorch 2.0
+FROM nvcr.io/nvidia/l4t-pytorch:r35.4.1-torch2.0-py3
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the project files
+COPY . .
+
+# Set environment variables for Hugging Face
+ENV HF_HOME=/app/huggingface_cache
+ENV TRANSFORMERS_CACHE=/app/huggingface_cache
+
+# Expose the default Gradio port
+EXPOSE 7860
+
+# Default command to run the Gradio application
+CMD ["python", "gradio_app_optimized.py"]

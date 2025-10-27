@@ -178,16 +178,33 @@ class RealtimeLightDetection:
         
         return vis_frame
     
-    def run_webcam(self, camera_id=0, output_path=None):
+    def _get_jetson_gstreamer_pipeline(self, camera_id=0, capture_width=1280, capture_height=720, display_width=1280, display_height=720, framerate=30, flip_method=0):
+        """为Jetson生成GStreamer管道字符串"""
+        return (
+            f"nvarguscamerasrc sensor-id={camera_id} ! "
+            f"video/x-raw(memory:NVMM), width=(int){capture_width}, height=(int){capture_height}, framerate=(fraction){framerate}/1 ! "
+            f"nvvidconv flip-method={flip_method} ! "
+            f"video/x-raw, width=(int){display_width}, height=(int){display_height}, format=(string)BGRx ! "
+            "videoconvert ! "
+            "video/x-raw, format=(string)BGR ! appsink"
+        )
+
+    def run_webcam(self, camera_id=0, use_gstreamer=False, output_path=None):
         """
         运行网络摄像头实时检测
         
         Args:
-            camera_id: 摄像头ID (0=默认摄像头)
+            camera_id: 摄像头ID (0=默认摄像头) or GStreamer pipeline
+            use_gstreamer: 是否为Jetson使用GStreamer
             output_path: 输出视频路径 (可选)
         """
-        print(f"\n启动摄像头 (ID={camera_id})...")
-        cap = cv2.VideoCapture(camera_id)
+        if use_gstreamer:
+            pipeline = self._get_jetson_gstreamer_pipeline(camera_id)
+            print(f"\n启动Jetson摄像头 (GStreamer)...")
+            cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+        else:
+            print(f"\n启动摄像头 (ID={camera_id})...")
+            cap = cv2.VideoCapture(camera_id)
         
         if not cap.isOpened():
             print(f"✗ 无法打开摄像头 {camera_id}")
@@ -471,6 +488,12 @@ def main():
         default=0,
         help='摄像头ID (仅webcam模式)'
     )
+
+    parser.add_argument(
+        '--jetson',
+        action='store_true',
+        help='为Jetson启用GStreamer摄像头管道'
+    )
     
     parser.add_argument(
         '--confidence',
@@ -494,6 +517,7 @@ def main():
     if args.mode == 'webcam':
         detector.run_webcam(
             camera_id=args.camera,
+            use_gstreamer=args.jetson,
             output_path=args.output
         )
     

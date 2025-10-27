@@ -32,3 +32,6 @@ tqdm>=4.65.0
 
 # 实时检测
 opencv-contrib-python>=4.8.0
+
+# API
+Flask>=2.2.0

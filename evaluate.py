@@ -11,6 +11,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import json
+import torch
 
 from pipeline import LightLocalization3D
 
