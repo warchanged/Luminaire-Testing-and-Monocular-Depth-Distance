@@ -27,6 +27,7 @@ from transformers import (
     AutoModelForDepthEstimation,
     DPTImageProcessor
 )
+from torchvision.ops import nms  # 使用 torchvision 的 NMS 实现
 import time
 from typing import List, Dict, Tuple, Optional
 
@@ -279,7 +280,9 @@ class LightLocalization3D:
             
             # 提取检测结果
             detections = []
-            seen_boxes = []  # 用于NMS
+            boxes_list = []
+            scores_list = []
+            labels_list = []
             image_area = pil_image.size[0] * pil_image.size[1]
             
             for box, score, label_id in zip(
@@ -297,24 +300,33 @@ class LightLocalization3D:
                 if area < image_area * min_area_ratio:
                     continue
                 
-                # NMS去重
-                if use_nms:
-                    is_duplicate = False
-                    for seen_box in seen_boxes:
-                        iou = self._calculate_iou(box_np, seen_box)
-                        if iou > nms_threshold:
-                            is_duplicate = True
-                            break
-                    
-                    if is_duplicate:
-                        continue
+                boxes_list.append(box)
+                scores_list.append(score)
+                labels_list.append(text_queries[label_id] if label_id < len(text_queries) else 'light')
+            
+            # 使用 torchvision.ops.nms 进行 NMS 去重
+            if use_nms and len(boxes_list) > 0:
+                boxes_tensor = torch.stack(boxes_list)
+                scores_tensor = torch.stack(scores_list)
                 
-                detections.append({
-                    'box': box_np,
-                    'confidence': float(score),
-                    'label': text_queries[label_id] if label_id < len(text_queries) else 'light'
-                })
-                seen_boxes.append(box_np)
+                # 应用 NMS
+                keep_indices = nms(boxes_tensor, scores_tensor, nms_threshold)
+                
+                # 根据保留的索引构建检测结果
+                for idx in keep_indices:
+                    detections.append({
+                        'box': boxes_list[idx].cpu().numpy(),
+                        'confidence': float(scores_list[idx]),
+                        'label': labels_list[idx]
+                    })
+            else:
+                # 不使用 NMS 时直接添加所有检测结果
+                for box, score, label in zip(boxes_list, scores_list, labels_list):
+                    detections.append({
+                        'box': box.cpu().numpy(),
+                        'confidence': float(score),
+                        'label': label
+                    })
             
             # 按置信度排序
             detections = sorted(detections, key=lambda x: x['confidence'], reverse=True)
@@ -633,27 +645,6 @@ class LightLocalization3D:
                 'total': total_time
             }
         }
-    
-    @staticmethod
-    def _calculate_iou(box1, box2):
-        """计算两个边界框的IOU"""
-        x1_min, y1_min, x1_max, y1_max = box1
-        x2_min, y2_min, x2_max, y2_max = box2
-        
-        inter_x_min = max(x1_min, x2_min)
-        inter_y_min = max(y1_min, y2_min)
-        inter_x_max = min(x1_max, x2_max)
-        inter_y_max = min(y1_max, y2_max)
-        
-        if inter_x_max < inter_x_min or inter_y_max < inter_y_min:
-            return 0.0
-        
-        inter_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
-        box1_area = (x1_max - x1_min) * (y1_max - y1_min)
-        box2_area = (x2_max - x2_min) * (y2_max - y2_min)
-        union_area = box1_area + box2_area - inter_area
-        
-        return inter_area / union_area if union_area > 0 else 0.0
 
 
 def main():

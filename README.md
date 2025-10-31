@@ -7,23 +7,34 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CUDA 12.1+](https://img.shields.io/badge/CUDA-12.1+-green.svg)](https://developer.nvidia.com/cuda-downloads)
 
-## ✨ 最新更新 (2024-10-24)
+## 📦 应用版本
 
-### 🎉 新功能
+| 版本 | 文件 | 用途 | 推荐环境 |
+|------|------|------|---------|
+| **Jetson 生产版** ⭐ | `gradio_app_jetson.py` | 精简优化,直连摄像头 | Jetson AGX Orin 64GB |
+| **服务器开发版** | `gradio_app_optimized.py` | 功能完整,包含测试 | AWS/本地服务器 |
+
+**快速部署**: 查看 [FILES_GUIDE.md](FILES_GUIDE.md) 了解文件说明和部署建议
+
+---
+
+## ✨ 最新更新 (2024-10-29)
+
+### 🎉 Jetson 部署优化
+
+- 🐳 **Docker 容器化**: 一键部署到 Jetson AGX Orin
+- ⚡ **精简版应用**: `gradio_app_jetson.py` 专为生产环境优化
+- 📹 **本地摄像头**: 直接使用 USB/CSI 摄像头,无需网络传输
+- 🚀 **NMS 优化**: 使用 `torchvision.ops.nms` 提升检测速度
+- 📚 **完整文档**: Jetson Docker 快速部署指南
+
+### 🛠️ 代码优化 (2024-10-24)
 
 - ⚡ **Gradio Web UI**: 可视化界面,支持图像上传和实时检测
 - 🚀 **TensorRT加速**: 推理速度提升2-3倍,显存占用降低30-50%
 - 🔄 **间隔采样检测**: 可调采样间隔(1-30秒),GPU负载降低90%+
 - 🎨 **精美Web客户端**: `webcam_client.html` 本地摄像头实时检测
 - 🔐 **DINOv3支持**: 完整配置HuggingFace访问权限
-
-### 🛠️ 优化改进
-
-- 修复scipy依赖缺失问题
-- 修复matplotlib API兼容性问题
-- 优化深度图可视化(避免中文字体警告)
-- 添加SSH隧道快速启动脚本
-- 完善部署文档和故障排除指南
 
 ---
 

@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  luminaire-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
+    image: luminaire-detection:jetson-orin
+    container_name: luminaire-detection
+    runtime: nvidia # 使用 NVIDIA runtime
+
+    # GPU 配置
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, compute, utility]
+
+    # 端口映射
+    ports:
+      - "7860:7860" # Gradio Web UI
+
+    # 环境变量
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - HF_HOME=/app/.cache/huggingface
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT=7860
+
+    # 挂载卷 (持久化缓存和模型)
+    volumes:
+      - ./models:/app/models
+      - ./results:/app/results
+      - ./cache:/app/.cache
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw # X11 转发 (如需显示)
+
+    # 设备映射 (摄像头)
+    devices:
+      - /dev/video0:/dev/video0 # USB 摄像头
+      - /dev/video1:/dev/video1 # 可选的第二个摄像头
+
+    # 网络模式
+    network_mode: bridge
+
+    # 重启策略
+    restart: unless-stopped
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
